@@ -25,8 +25,8 @@ pub fn launch_virtual_dom_blocking_return(virtual_dom: VirtualDom, mut desktop_c
 
     #[cfg(not(target_os = "ios"))]
     {
-    let mut custom_event_handler = desktop_config.custom_event_handler.take();
-    let (mut event_loop, mut app) = App::new(desktop_config, virtual_dom);
+        let mut custom_event_handler = desktop_config.custom_event_handler.take();
+        let (mut event_loop, mut app) = App::new(desktop_config, virtual_dom);
 
         use tao::platform::run_return::EventLoopExtRunReturn;
         event_loop.run_return(move |window_event, event_loop, control_flow| {
@@ -53,7 +53,9 @@ pub fn launch_virtual_dom_blocking_return(virtual_dom: VirtualDom, mut desktop_c
                     UserWindowEvent::Poll(id) => app.poll_vdom(id),
                     UserWindowEvent::NewWindow => app.handle_new_window(),
                     UserWindowEvent::CloseWindow(id) => app.handle_close_requested(id),
-                    UserWindowEvent::Shutdown => app.control_flow = tao::event_loop::ControlFlow::Exit,
+                    UserWindowEvent::Shutdown => {
+                        app.control_flow = tao::event_loop::ControlFlow::Exit
+                    }
 
                     #[cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))]
                     UserWindowEvent::GlobalHotKeyEvent(evnt) => app.handle_global_hotkey(evnt),
