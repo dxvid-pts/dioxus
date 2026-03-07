@@ -15,10 +15,12 @@ use dioxus_history::{History, MemoryHistory};
 use dioxus_hooks::to_owned;
 use dioxus_html::{FileData, FormValue, HtmlEvent, PlatformEventData, SerializedFileData};
 use futures_util::{FutureExt, pin_mut};
+#[cfg(target_os = "windows")]
+use std::path::PathBuf;
 use std::sync::{Arc, atomic::AtomicBool};
 use std::{cell::OnceCell, time::Duration};
 use std::{rc::Rc, task::Waker};
-use wry::{DragDropEvent, RequestAsyncResponder, WebContext, WebViewBuilder, WebViewId};
+use wry::{DragDropEvent, RequestAsyncResponder, WebContext, WebView, WebViewBuilder, WebViewId};
 
 #[derive(Clone)]
 pub(crate) struct WebviewEdits {
@@ -199,6 +201,8 @@ pub(crate) struct WebviewInstance {
     pub dom: VirtualDom,
     pub edits: WebviewEdits,
     pub desktop_context: DesktopContext,
+    #[cfg(target_os = "windows")]
+    pub data_dir: Option<PathBuf>,
     pub initially_visible: bool,
     pub waker: Waker,
 
@@ -228,7 +232,10 @@ impl WebviewInstance {
         mut dom: VirtualDom,
         shared: Rc<SharedContext>,
         initially_visible: bool,
+        _reused_environment_source: Option<&WebView>,
     ) -> WebviewInstance {
+        #[cfg(target_os = "windows")]
+        let data_dir = cfg.data_dir.clone();
         let mut window = cfg.window.clone();
 
         // tao makes small windows for some reason, make them bigger on desktop
@@ -395,6 +402,13 @@ impl WebviewInstance {
             }) // prevent all navigations
             .with_asynchronous_custom_protocol(String::from("dioxus"), request_handler);
 
+        #[cfg(target_os = "windows")]
+        if let Some(existing_webview) = _reused_environment_source {
+            use wry::{WebViewBuilderExtWindows, WebViewExtWindows};
+
+            webview = webview.with_environment(existing_webview.environment());
+        }
+
         // Enable https scheme on android, needed for secure context API, like the geolocation API
         #[cfg(target_os = "android")]
         {
@@ -529,6 +543,8 @@ impl WebviewInstance {
         WebviewInstance {
             dom,
             edits,
+            #[cfg(target_os = "windows")]
+            data_dir,
             initially_visible,
             waker: tao_waker(shared.proxy.clone(), desktop_context.window.id()),
             desktop_context,
@@ -659,10 +675,20 @@ impl PendingWebview {
         (webview, pending)
     }
 
-    pub(crate) fn create_window(self, shared: &Rc<SharedContext>) -> WebviewInstance {
+    pub(crate) fn create_window_with_environment(
+        self,
+        shared: &Rc<SharedContext>,
+        reused_environment_source: Option<&WebView>,
+    ) -> WebviewInstance {
         let Self { dom, cfg, sender } = self;
         let initially_visible = WebviewInstance::requested_visible(&cfg);
-        let window = WebviewInstance::new(cfg, dom, shared.clone(), initially_visible);
+        let window = WebviewInstance::new(
+            cfg,
+            dom,
+            shared.clone(),
+            initially_visible,
+            reused_environment_source,
+        );
 
         let cx = window
             .dom
@@ -670,6 +696,11 @@ impl PendingWebview {
         _ = sender.send(cx);
 
         window
+    }
+
+    #[cfg(target_os = "windows")]
+    pub(crate) fn data_dir(&self) -> &Option<PathBuf> {
+        &self.cfg.data_dir
     }
 }
 

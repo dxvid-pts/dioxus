@@ -8,6 +8,8 @@ use crate::{
     webview::{PendingWebview, WebviewInstance},
 };
 use dioxus_core::VirtualDom;
+#[cfg(target_os = "windows")]
+use std::path::PathBuf;
 use std::{
     cell::{Cell, RefCell},
     collections::HashMap,
@@ -162,7 +164,7 @@ impl App {
         {
             if button == tray_icon::MouseButton::Left {
                 for webview in self.webviews.values() {
-                    webview.desktop_context.window.set_visible(true);
+                    Self::set_webview_visible(webview, true);
                     webview.desktop_context.window.set_focus();
                 }
             }
@@ -178,8 +180,22 @@ impl App {
     }
 
     pub fn handle_new_window(&mut self) {
-        for pending_webview in self.shared.pending_webviews.borrow_mut().drain(..) {
-            let window = pending_webview.create_window(&self.shared);
+        let pending_webviews = self
+            .shared
+            .pending_webviews
+            .borrow_mut()
+            .drain(..)
+            .collect::<Vec<_>>();
+
+        for pending_webview in pending_webviews {
+            #[cfg(target_os = "windows")]
+            let reused_environment_source =
+                self.reused_environment_source(pending_webview.data_dir());
+            #[cfg(not(target_os = "windows"))]
+            let reused_environment_source = None;
+
+            let window = pending_webview
+                .create_window_with_environment(&self.shared, reused_environment_source);
             let id = window.desktop_context.window.id();
             self.webviews.insert(id, window);
             _ = self.shared.proxy.send_event(UserWindowEvent::Poll(id));
@@ -195,7 +211,7 @@ impl App {
         match window.desktop_context.close_behaviour.get() {
             // If the window is just set to hide when closed, we can just hide it
             WindowCloseBehaviour::WindowHides => {
-                window.desktop_context.window.set_visible(false);
+                Self::set_webview_visible(window, false);
             }
 
             // If the window is set to close, we can remove it from the list of webviews
@@ -257,8 +273,18 @@ impl App {
         let explicit_window_size = cfg.window.window.inner_size;
         let explicit_window_position = cfg.window.window.position;
 
-        let webview =
-            WebviewInstance::new(cfg, virtual_dom, self.shared.clone(), initially_visible);
+        #[cfg(target_os = "windows")]
+        let reused_environment_source = self.reused_environment_source(&cfg.data_dir);
+        #[cfg(not(target_os = "windows"))]
+        let reused_environment_source = None;
+
+        let webview = WebviewInstance::new(
+            cfg,
+            virtual_dom,
+            self.shared.clone(),
+            initially_visible,
+            reused_environment_source,
+        );
 
         // And then attempt to resume from state
         self.resume_from_state(&webview, explicit_window_size, explicit_window_position);
@@ -293,9 +319,7 @@ impl App {
 
         #[cfg(not(target_os = "linux"))]
         {
-            view.desktop_context
-                .window
-                .set_visible(view.initially_visible);
+            Self::set_webview_visible(view, view.initially_visible);
         }
 
         _ = self.shared.proxy.send_event(UserWindowEvent::Poll(id));
@@ -417,6 +441,22 @@ impl App {
         };
 
         view.poll_vdom();
+    }
+
+    fn set_webview_visible(view: &WebviewInstance, visible: bool) {
+        view.desktop_context.window.set_visible(visible);
+        _ = view.desktop_context.webview.set_visible(visible);
+    }
+
+    #[cfg(target_os = "windows")]
+    fn reused_environment_source<'a>(
+        &'a self,
+        data_dir: &Option<PathBuf>,
+    ) -> Option<&'a wry::WebView> {
+        self.webviews
+            .values()
+            .find(|webview| webview.data_dir.as_ref() == data_dir.as_ref())
+            .map(|webview| &webview.desktop_context.webview)
     }
 
     #[cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))]
