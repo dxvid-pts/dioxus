@@ -1,5 +1,4 @@
 use crate::{
-    AssetRequest, Config, WindowCloseBehaviour, WryEventHandler,
     app::SharedContext,
     assets::AssetHandlerRegistry,
     file_upload::NativeFileHover,
@@ -7,6 +6,7 @@ use crate::{
     query::QueryEngine,
     shortcut::{HotKey, HotKeyState, ShortcutHandle, ShortcutRegistryError},
     webview::PendingWebview,
+    AssetRequest, Config, WindowCloseBehaviour, WryEventHandler,
 };
 use dioxus_core::{Callback, VirtualDom};
 use std::{
@@ -327,7 +327,7 @@ impl DesktopService {
 
 #[cfg(target_os = "ios")]
 fn is_main_thread() -> bool {
-    use objc::runtime::{BOOL, Class, NO};
+    use objc::runtime::{Class, BOOL, NO};
     use objc::*;
 
     let cls = Class::get("NSThread").unwrap();

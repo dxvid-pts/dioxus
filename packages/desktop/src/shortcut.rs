@@ -8,8 +8,8 @@
     target_os = "openbsd"
 ))]
 pub use global_hotkey::{
-    Error as HotkeyError, GlobalHotKeyEvent, GlobalHotKeyManager, HotKeyState,
     hotkey::{Code, HotKey},
+    Error as HotkeyError, GlobalHotKeyEvent, GlobalHotKeyManager, HotKeyState,
 };
 
 #[cfg(any(target_os = "ios", target_os = "android"))]

@@ -2,11 +2,11 @@ use std::rc::Rc;
 
 use dioxus_core::ElementId;
 use dioxus_html::{
-    MountedResult, RenderedElementBacking,
     geometry::{PixelsRect, PixelsSize, PixelsVector2D},
+    MountedResult, RenderedElementBacking,
 };
 
-use crate::{WeakDesktopContext, desktop_context::DesktopContext, query::QueryEngine};
+use crate::{desktop_context::DesktopContext, query::QueryEngine, WeakDesktopContext};
 
 #[derive(Clone)]
 /// A mounted element passed to onmounted events

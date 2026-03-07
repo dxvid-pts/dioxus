@@ -1,7 +1,7 @@
 use dioxus_core::Callback;
 use rustc_hash::FxHashMap;
 use std::{cell::RefCell, rc::Rc};
-use wry::{RequestAsyncResponder, http::Request};
+use wry::{http::Request, RequestAsyncResponder};
 
 /// A request for an asset within dioxus-desktop.
 pub type AssetRequest = Request<Vec<u8>>;

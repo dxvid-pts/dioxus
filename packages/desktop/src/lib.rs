@@ -51,7 +51,7 @@ pub mod trayicon;
 pub use assets::AssetRequest;
 pub use config::{Config, WindowCloseBehaviour};
 pub use desktop_context::{
-    DesktopContext, DesktopService, PendingDesktopContext, WeakDesktopContext, window,
+    window, DesktopContext, DesktopService, PendingDesktopContext, WeakDesktopContext,
 };
 pub use event_handlers::WryEventHandler;
 pub use hooks::*;

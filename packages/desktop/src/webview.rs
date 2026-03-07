@@ -369,6 +369,8 @@ impl WebviewInstance {
 
         let page_loaded = AtomicBool::new(false);
         let bootstrap_url = Self::bootstrap_url(&format!("{:?}", window.id()));
+        let build_window_id = window.id();
+        let nav_window_id = window.id();
         dioxdbg!(
             "build_window tao_id={:?} initially_visible={} tao_visible={} headless={} data_dir={:?} bootstrap_url={} edits_path={}",
             window.id(),
@@ -392,6 +394,7 @@ impl WebviewInstance {
             .with_url(&bootstrap_url)
             .with_ipc_handler(ipc_handler)
             .with_navigation_handler(move |var| {
+                dioxdbg!("nav_request tao_id={:?} url={}", nav_window_id, var);
                 // We don't want to allow any navigation
                 // We only want to serve the index file and assets
                 if var.starts_with("dioxus://")
@@ -529,6 +532,7 @@ impl WebviewInstance {
             webview.build_gtk(vbox)
         };
         let webview = webview.unwrap();
+        dioxdbg!("build_complete tao_id={:?}", build_window_id);
 
         let desktop_context = Rc::from(DesktopService::new(
             webview,
@@ -538,6 +542,10 @@ impl WebviewInstance {
             file_hover,
             cfg.window_close_behavior,
         ));
+        dioxdbg!(
+            "desktop_context_ready tao_id={:?}",
+            desktop_context.window.id()
+        );
 
         // Provide the desktop context to the virtual dom and edit handler
         edits.set_desktop_context(Rc::downgrade(&desktop_context));

@@ -207,6 +207,7 @@ impl App {
             let window = pending_webview
                 .create_window_with_environment(&self.shared, reused_environment_source);
             let id = window.desktop_context.window.id();
+            dioxdbg!("queue_window_ready tao_id={id:?}");
             self.webviews.insert(id, window);
             _ = self.shared.proxy.send_event(UserWindowEvent::Poll(id));
         }
@@ -306,6 +307,7 @@ impl App {
         self.resume_from_state(&webview, explicit_window_size, explicit_window_position);
 
         let id = webview.desktop_context.window.id();
+        dioxdbg!("root_window_ready tao_id={id:?}");
         self.webviews.insert(id, webview);
     }
 

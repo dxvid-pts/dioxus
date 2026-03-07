@@ -68,7 +68,7 @@ fn try_downloads_log_path(base_dir: &Path) -> PathBuf {
 
 #[cfg(test)]
 mod tests {
-    use super::{LOG_PREFIX, prefixed_message};
+    use super::{prefixed_message, LOG_PREFIX};
 
     #[test]
     fn prefixed_message_uses_stable_prefix() {
