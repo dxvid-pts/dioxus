@@ -219,6 +219,10 @@ impl WebviewInstance {
         cfg.window.window.visible
     }
 
+    fn bootstrap_url(id: &str) -> String {
+        format!("dioxus://index.html/?dx_window_id={id}")
+    }
+
     pub(crate) fn new(
         mut cfg: Config,
         mut dom: VirtualDom,
@@ -356,6 +360,7 @@ impl WebviewInstance {
         };
 
         let page_loaded = AtomicBool::new(false);
+        let bootstrap_url = Self::bootstrap_url(&format!("{:?}", window.id()));
 
         let mut webview = WebViewBuilder::new_with_web_context(&mut web_context)
             .with_bounds(wry::Rect {
@@ -366,7 +371,7 @@ impl WebviewInstance {
                 )),
             })
             .with_transparent(cfg.window.window.transparent)
-            .with_url("dioxus://index.html/")
+            .with_url(&bootstrap_url)
             .with_ipc_handler(ipc_handler)
             .with_navigation_handler(move |var| {
                 // We don't want to allow any navigation
@@ -690,5 +695,15 @@ mod tests {
         let cfg = Config::new().with_window(WindowBuilder::new().with_visible(false));
 
         assert!(!WebviewInstance::requested_visible(&cfg));
+    }
+
+    #[test]
+    fn bootstrap_url_is_unique_per_window() {
+        let first = WebviewInstance::bootstrap_url("first");
+        let second = WebviewInstance::bootstrap_url("second");
+
+        assert_eq!(first, "dioxus://index.html/?dx_window_id=first");
+        assert_eq!(second, "dioxus://index.html/?dx_window_id=second");
+        assert_ne!(first, second);
     }
 }
