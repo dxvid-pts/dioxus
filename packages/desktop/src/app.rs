@@ -30,7 +30,6 @@ pub(crate) struct App {
 
     // Stuff we need mutable access to
     pub(crate) control_flow: ControlFlow,
-    pub(crate) is_visible_before_start: bool,
     pub(crate) exit_on_last_window_close: bool,
     pub(crate) disable_dma_buf_on_wayland: bool,
     pub(crate) webviews: HashMap<WindowId, WebviewInstance>,
@@ -63,7 +62,6 @@ impl App {
         let app = Self {
             exit_on_last_window_close: cfg.exit_on_last_window_close,
             disable_dma_buf_on_wayland: cfg.disable_dma_buf_on_wayland,
-            is_visible_before_start: true,
             webviews: HashMap::new(),
             control_flow: ControlFlow::Wait,
             unmounted_dom: Cell::new(Some(virtual_dom)),
@@ -251,7 +249,7 @@ impl App {
             .take()
             .expect("Config should be set before initialization");
 
-        self.is_visible_before_start = cfg.window.window.visible;
+        let initially_visible = WebviewInstance::requested_visible(&cfg);
         #[cfg(not(target_os = "linux"))]
         {
             cfg.window = cfg.window.with_visible(false);
@@ -259,7 +257,8 @@ impl App {
         let explicit_window_size = cfg.window.window.inner_size;
         let explicit_window_position = cfg.window.window.position;
 
-        let webview = WebviewInstance::new(cfg, virtual_dom, self.shared.clone());
+        let webview =
+            WebviewInstance::new(cfg, virtual_dom, self.shared.clone(), initially_visible);
 
         // And then attempt to resume from state
         self.resume_from_state(&webview, explicit_window_size, explicit_window_position);
@@ -296,7 +295,7 @@ impl App {
         {
             view.desktop_context
                 .window
-                .set_visible(self.is_visible_before_start);
+                .set_visible(view.initially_visible);
         }
 
         _ = self.shared.proxy.send_event(UserWindowEvent::Poll(id));

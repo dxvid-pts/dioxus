@@ -1,21 +1,21 @@
+use crate::PendingDesktopContext;
 use crate::file_upload::{DesktopFileData, DesktopFileDragEvent};
 use crate::menubar::DioxusMenu;
-use crate::PendingDesktopContext;
 use crate::{
-    app::SharedContext, assets::AssetHandlerRegistry, edits::WryQueue,
-    file_upload::NativeFileHover, ipc::UserWindowEvent, protocol, waker::tao_waker, Config,
-    DesktopContext, DesktopService,
+    Config, DesktopContext, DesktopService, app::SharedContext, assets::AssetHandlerRegistry,
+    edits::WryQueue, file_upload::NativeFileHover, ipc::UserWindowEvent, protocol,
+    waker::tao_waker,
 };
-use crate::{document::DesktopDocument, WeakDesktopContext};
+use crate::{WeakDesktopContext, document::DesktopDocument};
 use crate::{element::DesktopElement, file_upload::DesktopFormData};
 use base64::prelude::BASE64_STANDARD;
-use dioxus_core::{consume_context, provide_context, Runtime, ScopeId, VirtualDom};
+use dioxus_core::{Runtime, ScopeId, VirtualDom, consume_context, provide_context};
 use dioxus_document::Document;
 use dioxus_history::{History, MemoryHistory};
 use dioxus_hooks::to_owned;
 use dioxus_html::{FileData, FormValue, HtmlEvent, PlatformEventData, SerializedFileData};
-use futures_util::{pin_mut, FutureExt};
-use std::sync::{atomic::AtomicBool, Arc};
+use futures_util::{FutureExt, pin_mut};
+use std::sync::{Arc, atomic::AtomicBool};
 use std::{cell::OnceCell, time::Duration};
 use std::{rc::Rc, task::Waker};
 use wry::{DragDropEvent, RequestAsyncResponder, WebContext, WebViewBuilder, WebViewId};
@@ -199,6 +199,7 @@ pub(crate) struct WebviewInstance {
     pub dom: VirtualDom,
     pub edits: WebviewEdits,
     pub desktop_context: DesktopContext,
+    pub initially_visible: bool,
     pub waker: Waker,
 
     // Wry assumes the webcontext is alive for the lifetime of the webview.
@@ -214,10 +215,15 @@ pub(crate) struct WebviewInstance {
 }
 
 impl WebviewInstance {
+    pub(crate) const fn requested_visible(cfg: &Config) -> bool {
+        cfg.window.window.visible
+    }
+
     pub(crate) fn new(
         mut cfg: Config,
         mut dom: VirtualDom,
         shared: Rc<SharedContext>,
+        initially_visible: bool,
     ) -> WebviewInstance {
         let mut window = cfg.window.clone();
 
@@ -518,6 +524,7 @@ impl WebviewInstance {
         WebviewInstance {
             dom,
             edits,
+            initially_visible,
             waker: tao_waker(shared.proxy.clone(), desktop_context.window.id()),
             desktop_context,
             _menu: menu,
@@ -648,13 +655,40 @@ impl PendingWebview {
     }
 
     pub(crate) fn create_window(self, shared: &Rc<SharedContext>) -> WebviewInstance {
-        let window = WebviewInstance::new(self.cfg, self.dom, shared.clone());
+        let Self { dom, cfg, sender } = self;
+        let initially_visible = WebviewInstance::requested_visible(&cfg);
+        let window = WebviewInstance::new(cfg, dom, shared.clone(), initially_visible);
 
         let cx = window
             .dom
             .in_scope(ScopeId::ROOT, consume_context::<Rc<DesktopService>>);
-        _ = self.sender.send(cx);
+        _ = sender.send(cx);
 
         window
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::WebviewInstance;
+    use crate::Config;
+    use tao::window::WindowBuilder;
+
+    #[test]
+    fn requested_visible_survives_bootstrap_hide_for_visible_windows() {
+        let mut cfg = Config::new().with_window(WindowBuilder::new().with_visible(true));
+        let initially_visible = WebviewInstance::requested_visible(&cfg);
+
+        cfg.window = cfg.window.with_visible(false);
+
+        assert!(initially_visible);
+        assert!(!WebviewInstance::requested_visible(&cfg));
+    }
+
+    #[test]
+    fn requested_visible_stays_false_for_hidden_windows() {
+        let cfg = Config::new().with_window(WindowBuilder::new().with_visible(false));
+
+        assert!(!WebviewInstance::requested_visible(&cfg));
     }
 }
