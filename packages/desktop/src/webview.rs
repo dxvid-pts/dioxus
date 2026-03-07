@@ -1,23 +1,23 @@
-use crate::PendingDesktopContext;
 use crate::file_upload::{DesktopFileData, DesktopFileDragEvent};
 use crate::menubar::DioxusMenu;
+use crate::PendingDesktopContext;
 use crate::{
-    Config, DesktopContext, DesktopService, app::SharedContext, assets::AssetHandlerRegistry,
-    debug_trace::dioxdbg, edits::WryQueue, file_upload::NativeFileHover, ipc::UserWindowEvent,
-    protocol, waker::tao_waker,
+    app::SharedContext, assets::AssetHandlerRegistry, debug_trace::dioxdbg, edits::WryQueue,
+    file_upload::NativeFileHover, ipc::UserWindowEvent, protocol, waker::tao_waker, Config,
+    DesktopContext, DesktopService,
 };
-use crate::{WeakDesktopContext, document::DesktopDocument};
+use crate::{document::DesktopDocument, WeakDesktopContext};
 use crate::{element::DesktopElement, file_upload::DesktopFormData};
 use base64::prelude::BASE64_STANDARD;
-use dioxus_core::{Runtime, ScopeId, VirtualDom, consume_context, provide_context};
+use dioxus_core::{consume_context, provide_context, Runtime, ScopeId, VirtualDom};
 use dioxus_document::Document;
 use dioxus_history::{History, MemoryHistory};
 use dioxus_hooks::to_owned;
 use dioxus_html::{FileData, FormValue, HtmlEvent, PlatformEventData, SerializedFileData};
-use futures_util::{FutureExt, pin_mut};
+use futures_util::{pin_mut, FutureExt};
 #[cfg(target_os = "windows")]
 use std::path::PathBuf;
-use std::sync::{Arc, atomic::AtomicBool};
+use std::sync::{atomic::AtomicBool, Arc};
 use std::{cell::OnceCell, time::Duration};
 use std::{rc::Rc, task::Waker};
 use wry::{DragDropEvent, RequestAsyncResponder, WebContext, WebView, WebViewBuilder, WebViewId};

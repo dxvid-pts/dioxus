@@ -9,8 +9,6 @@ use crate::{
     webview::{PendingWebview, WebviewInstance},
 };
 use dioxus_core::VirtualDom;
-#[cfg(target_os = "windows")]
-use std::path::PathBuf;
 use std::{
     cell::{Cell, RefCell},
     collections::HashMap,
@@ -189,10 +187,6 @@ impl App {
             .collect::<Vec<_>>();
 
         for pending_webview in pending_webviews {
-            #[cfg(target_os = "windows")]
-            let reused_environment_source =
-                self.reused_environment_source(pending_webview.data_dir());
-            #[cfg(not(target_os = "windows"))]
             let reused_environment_source = None;
             #[cfg(target_os = "windows")]
             let queued_data_dir = pending_webview.data_dir().clone();
@@ -284,9 +278,6 @@ impl App {
         let explicit_window_size = cfg.window.window.inner_size;
         let explicit_window_position = cfg.window.window.position;
 
-        #[cfg(target_os = "windows")]
-        let reused_environment_source = self.reused_environment_source(&cfg.data_dir);
-        #[cfg(not(target_os = "windows"))]
         let reused_environment_source = None;
 
         dioxdbg!(
@@ -473,17 +464,6 @@ impl App {
         );
         view.desktop_context.window.set_visible(visible);
         _ = view.desktop_context.webview.set_visible(visible);
-    }
-
-    #[cfg(target_os = "windows")]
-    fn reused_environment_source<'a>(
-        &'a self,
-        data_dir: &Option<PathBuf>,
-    ) -> Option<&'a wry::WebView> {
-        self.webviews
-            .values()
-            .find(|webview| webview.data_dir.as_ref() == data_dir.as_ref())
-            .map(|webview| &webview.desktop_context.webview)
     }
 
     #[cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))]
