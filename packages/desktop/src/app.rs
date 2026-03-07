@@ -1,5 +1,6 @@
 use crate::{
     config::{Config, WindowCloseBehaviour},
+    debug_trace::dioxdbg,
     edits::EditWebsocket,
     event_handlers::WindowEventHandlers,
     ipc::{IpcMessage, UserWindowEvent},
@@ -193,7 +194,16 @@ impl App {
                 self.reused_environment_source(pending_webview.data_dir());
             #[cfg(not(target_os = "windows"))]
             let reused_environment_source = None;
+            #[cfg(target_os = "windows")]
+            let queued_data_dir = pending_webview.data_dir().clone();
+            #[cfg(not(target_os = "windows"))]
+            let queued_data_dir = None::<std::path::PathBuf>;
 
+            dioxdbg!(
+                "queue_window data_dir={:?} reused_env={}",
+                queued_data_dir,
+                reused_environment_source.is_some()
+            );
             let window = pending_webview
                 .create_window_with_environment(&self.shared, reused_environment_source);
             let id = window.desktop_context.window.id();
@@ -278,6 +288,12 @@ impl App {
         #[cfg(not(target_os = "windows"))]
         let reused_environment_source = None;
 
+        dioxdbg!(
+            "root_window data_dir={:?} initially_visible={} reused_env={}",
+            cfg.data_dir,
+            initially_visible,
+            reused_environment_source.is_some()
+        );
         let webview = WebviewInstance::new(
             cfg,
             virtual_dom,
@@ -321,6 +337,10 @@ impl App {
         {
             Self::set_webview_visible(view, view.initially_visible);
         }
+        dioxdbg!(
+            "initialize tao_id={id:?} initially_visible={}",
+            view.initially_visible
+        );
 
         _ = self.shared.proxy.send_event(UserWindowEvent::Poll(id));
     }
@@ -444,6 +464,11 @@ impl App {
     }
 
     fn set_webview_visible(view: &WebviewInstance, visible: bool) {
+        dioxdbg!(
+            "set_visible tao_id={:?} visible={}",
+            view.desktop_context.window.id(),
+            visible
+        );
         view.desktop_context.window.set_visible(visible);
         _ = view.desktop_context.webview.set_visible(visible);
     }

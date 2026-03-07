@@ -1,15 +1,15 @@
 use std::path::PathBuf;
 
-use crate::{assets::*, webview::WebviewEdits};
+use crate::{assets::*, debug_trace::dioxdbg, webview::WebviewEdits};
 use crate::{document::NATIVE_EVAL_JS, file_upload::FileDialogRequest};
 use base64::prelude::BASE64_STANDARD;
 use dioxus_core::AnyhowContext;
 use dioxus_html::{SerializedFileData, SerializedFormObject};
-use dioxus_interpreter_js::unified_bindings::SLEDGEHAMMER_JS;
 use dioxus_interpreter_js::NATIVE_JS;
+use dioxus_interpreter_js::unified_bindings::SLEDGEHAMMER_JS;
 use wry::{
-    http::{status::StatusCode, Request, Response},
     RequestAsyncResponder,
+    http::{Request, Response, status::StatusCode},
 };
 
 #[cfg(target_os = "android")]
@@ -115,6 +115,13 @@ fn index_request(
 
     // Load a custom index file if provided
     let mut index = custom_index.unwrap_or_else(|| DEFAULT_INDEX.to_string());
+    dioxdbg!(
+        "serve_index uri={} root={} headless={} edits_path={}",
+        request.uri(),
+        root_name,
+        headless,
+        edit_state.wry_queue.edits_path()
+    );
 
     // Insert a custom head if provided
     // We look just for the closing head tag. If a user provided a custom index with weird syntax, this might fail

@@ -8,6 +8,7 @@ mod android_sync_lock;
 mod app;
 mod assets;
 mod config;
+mod debug_trace;
 mod desktop_context;
 mod document;
 mod edits;
@@ -50,7 +51,7 @@ pub mod trayicon;
 pub use assets::AssetRequest;
 pub use config::{Config, WindowCloseBehaviour};
 pub use desktop_context::{
-    window, DesktopContext, DesktopService, PendingDesktopContext, WeakDesktopContext,
+    DesktopContext, DesktopService, PendingDesktopContext, WeakDesktopContext, window,
 };
 pub use event_handlers::WryEventHandler;
 pub use hooks::*;

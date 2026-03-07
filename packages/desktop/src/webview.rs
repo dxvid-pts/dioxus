@@ -3,8 +3,8 @@ use crate::file_upload::{DesktopFileData, DesktopFileDragEvent};
 use crate::menubar::DioxusMenu;
 use crate::{
     Config, DesktopContext, DesktopService, app::SharedContext, assets::AssetHandlerRegistry,
-    edits::WryQueue, file_upload::NativeFileHover, ipc::UserWindowEvent, protocol,
-    waker::tao_waker,
+    debug_trace::dioxdbg, edits::WryQueue, file_upload::NativeFileHover, ipc::UserWindowEvent,
+    protocol, waker::tao_waker,
 };
 use crate::{WeakDesktopContext, document::DesktopDocument};
 use crate::{element::DesktopElement, file_upload::DesktopFormData};
@@ -284,6 +284,7 @@ impl WebviewInstance {
 
         let mut web_context = WebContext::new(cfg.data_dir.clone());
         let edit_queue = shared.websocket.create_queue();
+        let initial_edits_path = edit_queue.edits_path();
         let asset_handlers = AssetHandlerRegistry::new();
         let edits = WebviewEdits::new(dom.runtime(), edit_queue.clone());
         let file_hover = NativeFileHover::default();
@@ -368,6 +369,16 @@ impl WebviewInstance {
 
         let page_loaded = AtomicBool::new(false);
         let bootstrap_url = Self::bootstrap_url(&format!("{:?}", window.id()));
+        dioxdbg!(
+            "build_window tao_id={:?} initially_visible={} tao_visible={} headless={} data_dir={:?} bootstrap_url={} edits_path={}",
+            window.id(),
+            initially_visible,
+            cfg.window.window.visible,
+            headless,
+            cfg.data_dir,
+            bootstrap_url,
+            initial_edits_path
+        );
 
         let mut webview = WebViewBuilder::new_with_web_context(&mut web_context)
             .with_bounds(wry::Rect {
@@ -406,6 +417,7 @@ impl WebviewInstance {
         if let Some(existing_webview) = _reused_environment_source {
             use wry::{WebViewBuilderExtWindows, WebViewExtWindows};
 
+            dioxdbg!("reuse_environment tao_id={:?} reused_env=true", window.id());
             webview = webview.with_environment(existing_webview.environment());
         }
 
@@ -571,6 +583,11 @@ impl WebviewInstance {
                 .poll_new_edits_location(&mut cx)
                 .is_ready()
             {
+                dioxdbg!(
+                    "wait_for_request tao_id={:?} edits_path={}",
+                    self.desktop_context.window.id(),
+                    self.edits.wry_queue.edits_path()
+                );
                 _ = self.desktop_context.webview.evaluate_script(&format!(
                     "window.interpreter.waitForRequest(\"{edits_path}\", \"{expected_key}\");",
                     edits_path = self.edits.wry_queue.edits_path(),

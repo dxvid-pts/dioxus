@@ -18,6 +18,7 @@
 //! If this happens, we will automatically switch to a new port and notify the webview of the new location
 //! and key. The webview will then reconnect to the new port and continue receiving edits.
 
+use crate::debug_trace::dioxdbg;
 use dioxus_interpreter_js::MutationState;
 use futures_channel::oneshot;
 use futures_util::FutureExt;
@@ -28,8 +29,8 @@ use std::future::Future;
 use std::net::{TcpListener, TcpStream};
 use std::pin::Pin;
 use std::rc::Rc;
-use std::sync::atomic::AtomicU32;
 use std::sync::Mutex;
+use std::sync::atomic::AtomicU32;
 use std::{
     net::IpAddr,
     sync::{Arc, RwLock},
@@ -56,6 +57,11 @@ impl WryQueue {
         let mut myself = self.inner.borrow_mut();
         let webview_id = myself.location.webview_id;
         let serialized_edits = myself.mutation_state.export_memory();
+        dioxdbg!(
+            "queue_edits webview_id={} bytes={}",
+            webview_id,
+            serialized_edits.len()
+        );
         let receiver = myself.websocket.send_edits(webview_id, serialized_edits);
         myself.edits_in_progress = Some(receiver);
     }
@@ -173,6 +179,7 @@ impl EditWebsocket {
 
         let notify = Arc::new(Notify::new());
         let (location, server) = start_server();
+        dioxdbg!("websocket_start port={}", location.port);
         let current_location = Arc::new(Mutex::new(location));
 
         let connections_ = connections.clone();
@@ -215,6 +222,7 @@ impl EditWebsocket {
             let (location, new_server) = start_server();
             notify.notify_waiters();
             *current_location.lock().unwrap() = location;
+            dioxdbg!("websocket_restart port={}", location.port);
             server = new_server;
         }
     }
@@ -230,10 +238,12 @@ impl EditWebsocket {
         let hex_encoded_client_key = encode_key_string(&current_server_location.client_key);
         let hex_encoded_server_key = encode_key_string(&current_server_location.server_key);
         let mut location = None;
+        let mut request_path = String::new();
 
         let on_request = |req: &Request, res| {
             // Try to parse the webview id and key from the path
             let path = req.uri().path();
+            request_path = path.to_string();
 
             // The path should have two parts `/webview_id/key`
             let mut segments = path.trim_matches('/').split('/');
@@ -295,6 +305,11 @@ impl EditWebsocket {
                 return;
             }
         };
+        dioxdbg!(
+            "ws_accept webview_id={} path={}",
+            location.webview_id,
+            request_path
+        );
 
         // Handle the websocket connection in a separate thread
         let (edits_outgoing, edits_incoming_rx) = std::sync::mpsc::channel::<MsgPair>();
@@ -380,7 +395,7 @@ impl EditWebsocket {
             .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         let server = self.current_location.clone();
         let server_location = self.server_location.clone();
-        WryQueue {
+        let queue = WryQueue {
             inner: Rc::new(RefCell::new(WryQueueInner {
                 server_location_changed: server_location.clone(),
                 server_location_changed_future: owned_notify_future(server_location),
@@ -389,7 +404,13 @@ impl EditWebsocket {
                 edits_in_progress: None,
                 mutation_state: MutationState::default(),
             })),
-        }
+        };
+        dioxdbg!(
+            "create_queue webview_id={} edits_path={}",
+            webview_id,
+            queue.edits_path()
+        );
+        queue
     }
 
     fn send_edits(&mut self, webview: u32, edits: Vec<u8>) -> oneshot::Receiver<()> {
