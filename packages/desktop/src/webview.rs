@@ -199,6 +199,7 @@ pub(crate) struct WebviewInstance {
     pub dom: VirtualDom,
     pub edits: WebviewEdits,
     pub desktop_context: DesktopContext,
+    pub initially_visible: bool,
     pub waker: Waker,
 
     // Wry assumes the webcontext is alive for the lifetime of the webview.
@@ -214,10 +215,19 @@ pub(crate) struct WebviewInstance {
 }
 
 impl WebviewInstance {
+    pub(crate) const fn requested_visible(cfg: &Config) -> bool {
+        cfg.window.window.visible
+    }
+
+    fn bootstrap_url(id: &str) -> String {
+        format!("dioxus://index.html/?dx_window_id={id}")
+    }
+
     pub(crate) fn new(
         mut cfg: Config,
         mut dom: VirtualDom,
         shared: Rc<SharedContext>,
+        initially_visible: bool,
     ) -> WebviewInstance {
         let mut window = cfg.window.clone();
 
@@ -350,6 +360,7 @@ impl WebviewInstance {
         };
 
         let page_loaded = AtomicBool::new(false);
+        let bootstrap_url = Self::bootstrap_url(&format!("{:?}", window.id()));
 
         let mut webview = WebViewBuilder::new_with_web_context(&mut web_context)
             .with_bounds(wry::Rect {
@@ -360,7 +371,7 @@ impl WebviewInstance {
                 )),
             })
             .with_transparent(cfg.window.window.transparent)
-            .with_url("dioxus://index.html/")
+            .with_url(&bootstrap_url)
             .with_ipc_handler(ipc_handler)
             .with_navigation_handler(move |var| {
                 // We don't want to allow any navigation
@@ -518,6 +529,7 @@ impl WebviewInstance {
         WebviewInstance {
             dom,
             edits,
+            initially_visible,
             waker: tao_waker(shared.proxy.clone(), desktop_context.window.id()),
             desktop_context,
             _menu: menu,
@@ -648,7 +660,8 @@ impl PendingWebview {
     }
 
     pub(crate) fn create_window(self, shared: &Rc<SharedContext>) -> WebviewInstance {
-        let window = WebviewInstance::new(self.cfg, self.dom, shared.clone());
+        let initially_visible = WebviewInstance::requested_visible(&self.cfg);
+        let window = WebviewInstance::new(self.cfg, self.dom, shared.clone(), initially_visible);
 
         let cx = window
             .dom
@@ -656,5 +669,40 @@ impl PendingWebview {
         _ = self.sender.send(cx);
 
         window
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::WebviewInstance;
+    use crate::Config;
+    use tao::window::WindowBuilder;
+
+    #[test]
+    fn requested_visible_survives_bootstrap_hide_for_visible_windows() {
+        let mut cfg = Config::new().with_window(WindowBuilder::new().with_visible(true));
+        let initially_visible = WebviewInstance::requested_visible(&cfg);
+
+        cfg.window = cfg.window.with_visible(false);
+
+        assert!(initially_visible);
+        assert!(!WebviewInstance::requested_visible(&cfg));
+    }
+
+    #[test]
+    fn requested_visible_stays_false_for_hidden_windows() {
+        let cfg = Config::new().with_window(WindowBuilder::new().with_visible(false));
+
+        assert!(!WebviewInstance::requested_visible(&cfg));
+    }
+
+    #[test]
+    fn bootstrap_url_is_unique_per_window() {
+        let first = WebviewInstance::bootstrap_url("first");
+        let second = WebviewInstance::bootstrap_url("second");
+
+        assert_eq!(first, "dioxus://index.html/?dx_window_id=first");
+        assert_eq!(second, "dioxus://index.html/?dx_window_id=second");
+        assert_ne!(first, second);
     }
 }

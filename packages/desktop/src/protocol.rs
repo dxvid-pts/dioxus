@@ -130,11 +130,21 @@ fn index_request(
         &module_loader(root_name, headless, edit_state),
     );
 
-    Response::builder()
+    no_store_response(Response::builder())
         .header("Content-Type", "text/html")
         .header("Access-Control-Allow-Origin", "*")
         .body(index.into())
         .ok()
+}
+
+fn no_store_response(builder: wry::http::response::Builder) -> wry::http::response::Builder {
+    builder
+        .header(
+            "Cache-Control",
+            "no-store, no-cache, must-revalidate, max-age=0",
+        )
+        .header("Pragma", "no-cache")
+        .header("Expires", "0")
 }
 
 /// Construct the inline script that boots up the page and bridges the webview with rust code.
@@ -272,4 +282,39 @@ fn respond_to_file_dialog(
     );
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::no_store_response;
+    use wry::http::Response;
+
+    #[test]
+    fn no_store_response_adds_cache_bypass_headers() {
+        let response = no_store_response(Response::builder())
+            .body(Vec::<u8>::new())
+            .expect("response to build");
+
+        assert_eq!(
+            response
+                .headers()
+                .get("Cache-Control")
+                .and_then(|value| value.to_str().ok()),
+            Some("no-store, no-cache, must-revalidate, max-age=0")
+        );
+        assert_eq!(
+            response
+                .headers()
+                .get("Pragma")
+                .and_then(|value| value.to_str().ok()),
+            Some("no-cache")
+        );
+        assert_eq!(
+            response
+                .headers()
+                .get("Expires")
+                .and_then(|value| value.to_str().ok()),
+            Some("0")
+        );
+    }
 }
