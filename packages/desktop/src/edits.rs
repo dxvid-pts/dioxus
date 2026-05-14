@@ -275,7 +275,7 @@ impl EditWebsocket {
         };
 
         // Accept the websocket connection while reading the path and setting the location
-        let mut websocket = match tungstenite::accept_hdr(stream, on_request) {
+        let mut websocket = match tungstenite::accept_hdr_with_config(stream, on_request, Some(tungstenite::protocol::WebSocketConfig::default())) {
             Ok(ws) => ws,
             Err(e) => {
                 tracing::error!("Error accepting websocket connection: {}", e);
